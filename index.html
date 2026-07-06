@@ -2,11 +2,12 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Super Audio Player for YouTube</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Bath Room Cinema Ultimate</title>
     <style>
+        * { box-sizing: border-box; }
         body {
-            font-family: 'Helvetica Neue', Arial, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
             background-color: #0c0f12;
             color: #ffffff;
             display: flex;
@@ -14,144 +15,161 @@
             align-items: center;
             min-height: 100vh;
             margin: 0;
+            padding: 20px;
+            overflow-x: hidden;
         }
+
+        /* 🎬 背景のYouTube動画を全画面に固定 */
+        .video-background {
+            position: fixed;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            z-index: -1; overflow: hidden; background-color: #0c0f12;
+        }
+        .video-background iframe {
+            position: absolute; top: 50%; left: 50%;
+            width: 100vw; height: 56.25vw; min-height: 100vh; min-width: 177.77vh;
+            transform: translate(-50%, -50%); opacity: 0.4;
+            transition: opacity 0.5s ease;
+        }
+
+        body.theater-mode .video-background iframe { opacity: 0.9; }
+
+        /* 📱 半透明コンテナ */
         .player-container {
-            background-color: #161b22;
-            padding: 30px;
-            border-radius: 24px;
-            box-shadow: 0 16px 40px rgba(0,0,0,0.7);
-            text-align: center;
-            width: 380px;
-            border: 1px solid #21262d;
+            background-color: rgba(22, 27, 34, 0.85);
+            backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+            padding: 25px; border-radius: 28px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.8);
+            text-align: center; width: 100%; max-width: 400px;
+            border: 1px solid rgba(255, 255, 255, 0.1); z-index: 10;
+            opacity: 1; transform: scale(1);
+            transition: opacity 0.4s ease, transform 0.4s ease, visibility 0.4s;
+            position: relative;
         }
-        h1 { font-size: 1.4rem; margin-bottom: 20px; color: #1DB954; font-weight: 800; letter-spacing: 1px; }
         
-        .search-box {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 20px;
+        body.theater-mode .player-container { opacity: 0; transform: scale(0.95); visibility: hidden; pointer-events: none; }
+
+        .theater-toggle-btn {
+            position: absolute; top: 15px; right: 15px;
+            background: none; border: none; font-size: 1.3rem; cursor: pointer; color: #8b949e;
+            -webkit-tap-highlight-color: transparent;
         }
-        input {
-            flex: 1;
-            padding: 12px;
-            border: 1px solid #30363d;
-            border-radius: 10px;
-            background-color: #0d1117;
-            color: white;
-            outline: none;
+        .theater-toggle-btn:hover { color: #1DB954; }
+
+        .exit-theater-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 5; display: none; cursor: pointer; }
+        body.theater-mode .exit-theater-overlay { display: block; }
+        
+        h1 { font-size: 1.4rem; margin-top: 0; margin-bottom: 15px; padding-right: 30px; color: #1DB954; font-weight: 800; text-align: left; }
+        
+        .setup-section {
+            background-color: rgba(13, 17, 23, 0.6); padding: 12px; border-radius: 16px;
+            margin-bottom: 15px; border: 1px solid rgba(255,255,255,0.05);
+        }
+        .input-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; text-align: left; }
+        .input-group:last-child { margin-bottom: 0; }
+        .input-group label { font-size: 0.75rem; color: #8b949e; font-weight: bold; padding-left: 4px; }
+        .input-row { display: flex; gap: 8px; }
+        
+        input[type="text"] {
+            flex: 1; padding: 12px; border: 1px solid #30363d; border-radius: 12px;
+            background-color: rgba(13, 17, 23, 0.9); color: white; outline: none; font-size: 0.9rem;
         }
         input:focus { border-color: #1DB954; }
+        
         .load-btn {
-            padding: 12px 20px;
-            border: none;
-            border-radius: 10px;
-            background-color: #1DB954;
-            color: white;
-            font-weight: bold;
-            cursor: pointer;
+            padding: 0 16px; border: none; border-radius: 12px;
+            background-color: #1DB954; color: white; font-weight: bold; cursor: pointer; font-size: 0.9rem;
         }
+        .bg-btn { background-color: #21262d; border: 1px solid #30363d; }
 
-        .progress-container {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            margin: 20px 0;
-            font-size: 0.8rem;
-            color: #8b949e;
-        }
-        .seek-bar {
-            flex: 1;
-            accent-color: #1DB954;
-            cursor: pointer;
-        }
+        .visualizer-container { display: flex; justify-content: center; align-items: flex-end; gap: 5px; height: 40px; margin: 10px auto; width: 80%; }
+        .bar { width: 7px; height: 5px; background-color: #1DB954; border-radius: 4px; transition: height 0.1s ease; }
 
-        .controls {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            gap: 15px;
-            margin-bottom: 25px;
-        }
+        .progress-container { display: flex; align-items: center; gap: 12px; margin: 15px 0; font-size: 0.85rem; color: #8b949e; }
+        .seek-bar { flex: 1; accent-color: #1DB954; cursor: pointer; height: 8px; }
+
+        .controls { display: flex; justify-content: center; align-items: center; gap: 15px; margin-bottom: 15px; }
         .btn {
-            background-color: #21262d;
-            border: 1px solid #30363d;
-            color: white;
-            padding: 10px 18px;
-            border-radius: 50px;
-            cursor: pointer;
-            font-size: 0.85rem;
-            transition: all 0.2s;
+            background-color: #21262d; border: 1px solid #30363d; color: white;
+            padding: 14px 20px; border-radius: 50px; cursor: pointer; font-size: 0.95rem; font-weight: bold;
+            -webkit-tap-highlight-color: transparent;
         }
-        .btn:hover { background-color: #30363d; }
-        .play-btn {
-            background-color: #ffffff;
-            color: #000000;
-            font-weight: bold;
-            padding: 12px 28px;
-            border: none;
-        }
-        .play-btn:hover { background-color: #e6e6e6; }
+        .play-btn { background-color: #ffffff; color: #000000; padding: 16px 36px; font-size: 1.1rem; }
 
-        /* エフェクトボード */
         .effect-section {
-            background-color: #0d1117;
-            padding: 18px;
-            border-radius: 14px;
-            margin-top: 15px;
-            text-align: left;
-            border: 1px solid #21262d;
+            background-color: rgba(13, 17, 23, 0.8); padding: 14px; border-radius: 16px;
+            margin-top: 12px; text-align: left; border: 1px solid rgba(255,255,255,0.05);
         }
-        .effect-title {
-            font-size: 0.9rem;
-            color: #1DB954;
-            margin-top: 0;
-            margin-bottom: 15px;
-            font-weight: bold;
-            display: flex;
-            align-items: center;
-            gap: 5px;
+        .effect-title { font-size: 0.85rem; color: #1DB954; margin: 0 0 10px 0; font-weight: bold; }
+        .slider-row { display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; margin-bottom: 10px; }
+        .slider-row:last-child { margin-bottom: 0; }
+        .effect-slider { width: 55%; accent-color: #1DB954; height: 8px; }
+
+        .playlist-section {
+            margin-top: 12px; background-color: rgba(13, 17, 23, 0.8); padding: 14px; border-radius: 16px;
+            border: 1px solid rgba(255,255,255,0.05); text-align: left;
         }
-        .slider-group {
-            display: flex;
-            flex-direction: column;
-            gap: 14px;
-            font-size: 0.8rem;
-            color: #c9d1d9;
+        .tabs { display: flex; gap: 10px; margin-bottom: 10px; border-bottom: 1px solid #21262d; padding-bottom: 5px; }
+        .tab-btn { background: none; border: none; color: #8b949e; cursor: pointer; font-size: 0.85rem; font-weight: bold; padding: 4px 8px; }
+        .tab-btn.active { color: #1DB954; border-bottom: 2px solid #1DB954; }
+        
+        .playlist-title-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        .add-fav-btn {
+            background: none; border: 1px solid #1DB954; color: #1DB954; padding: 4px 10px; border-radius: 8px;
+            font-size: 0.75rem; cursor: pointer; font-weight: bold;
         }
-        .slider-row {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        .slider-label {
-            width: 35%;
-        }
-        .effect-slider {
-            width: 65%;
-            accent-color: #1DB954;
+        .playlist-ul { list-style: none; padding: 0; margin: 0; max-height: 90px; overflow-y: auto; display: none; }
+        .playlist-ul.active { display: block; }
+        .playlist-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 5px; border-bottom: 1px solid #21262d; }
+        .playlist-text { cursor: pointer; color: #c9d1d9; text-overflow: ellipsis; white-space: nowrap; overflow: hidden; width: 80%; font-size: 0.85rem; }
+        .delete-btn { background: none; border: none; color: #f85149; cursor: pointer; font-size: 1.1rem; padding: 0 10px; }
+
+        #start-overlay {
+            position: fixed; top:0; left:0; width:100vw; height:100vh;
+            background: rgba(12,15,18,0.9); z-index: 100;
+            display: flex; justify-content: center; align-items: center;
+            font-weight: bold; font-size: 1.2rem; color: #1DB954; text-align: center; padding: 20px;
         }
 
-        #youtube-iframe-holder {
-            /* 完全に非表示にせず、画面の隅っこに1x1マスで生存させる */
-            position: fixed;
-            bottom: 0;
-            right: 0;
-            width: 1px;
-            height: 1px;
-            opacity: 0.01;
-            pointer-events: none;
-        }
+        .hidden-players { position: fixed; bottom: -500px; right: 0; width: 100px; height: 100px; pointer-events: none; }
     </style>
 </head>
 <body>
 
+<div id="start-overlay" onclick="unlockAudio()">
+    📱 画面をどこでも1回タップして<br>プレイヤーを起動してください
+</div>
+
+<div class="exit-theater-overlay" onclick="toggleTheaterMode()"></div>
+
+<!-- 🎬 背景動画エリア -->
+<div class="video-background">
+    <div id="bg-player"></div>
+</div>
+
 <div class="player-container">
-    <h1>YT Sound Customizer</h1>
+    <button class="theater-toggle-btn" onclick="toggleTheaterMode()" title="背景だけ表示モード">📺</button>
+
+    <h1>🧼 Bath Room Pro</h1>
     
-    <div class="search-box">
-        <input type="text" id="youtube-url" placeholder="YouTubeのURLをペースト">
-        <button class="load-btn" onclick="loadAndPlay()">読込</button>
+    <div class="setup-section">
+        <div class="input-group">
+            <label>🎵 音楽のYouTube URL</label>
+            <div class="input-row">
+                <input type="text" id="youtube-url" placeholder="URLをペースト">
+                <button class="load-btn" onclick="loadAndPlay()">読込</button>
+            </div>
+        </div>
+        <div class="input-group">
+            <label>🎬 背景動画のYouTube URL</label>
+            <div class="input-row">
+                <input type="text" id="bg-url" placeholder="URLをペースト（空なら音楽と同期）">
+                <button class="load-btn bg-btn" onclick="loadBackgroundOnly()">背景変更</button>
+            </div>
+        </div>
     </div>
+
+    <div class="visualizer-container" id="visualizer"></div>
 
     <div class="progress-container">
         <span id="current-time">0:00</span>
@@ -160,34 +178,45 @@
     </div>
 
     <div class="controls">
-        <button class="btn" onclick="skip(-10)">◀ 10秒戻る</button>
+        <button class="btn" onclick="skip(-10)">◀ 10秒</button>
         <button class="btn play-btn" id="play-pause-btn" onclick="togglePlay()">再生</button>
-        <button class="btn" onclick="skip(10)">10秒進む ▶</button>
+        <button class="btn" onclick="skip(10)">10秒 ▶</button>
     </div>
 
-    <!-- 音響エフェクトボード -->
+    <!-- 🎛 コントロール・エフェクトセクション -->
     <div class="effect-section">
-        <p class="effect-title">🎛 空間音響コントロール</p>
-        <div class="slider-group">
-            <div class="slider-row">
-                <span class="slider-label">🔊 音量:</span>
-                <input type="range" class="effect-slider" min="0" max="100" value="100" oninput="changeVolume(this.value)">
-            </div>
-            <div class="slider-row">
-                <span class="slider-label">🛁 お風呂の反響:</span>
-                <input type="range" class="effect-slider" id="reverb-slider" min="0" max="100" value="0" oninput="updateAudioEffects()">
-            </div>
-            <div class="slider-row">
-                <span class="slider-label">🌐 左右の広がり:</span>
-                <input type="range" class="effect-slider" id="surround-slider" min="0" max="100" value="0" oninput="updateAudioEffects()">
-            </div>
+        <p class="effect-title">🎛 オーディオコントロール</p>
+        <!-- 🔊 新設：全体音量マスターバー -->
+        <div class="slider-row">
+            <span>🔊 全体音量マスター:</span>
+            <input type="range" class="effect-slider" id="volume-slider" min="0" max="100" value="80" oninput="updateAllVolumes()">
         </div>
+        <div class="slider-row">
+            <span>🛁 密着お風呂反響:</span>
+            <input type="range" class="effect-slider" id="reverb-slider" min="0" max="100" value="50" oninput="updateAllVolumes()">
+        </div>
+    </div>
+
+    <!-- 📋 タブ式お気に入り -->
+    <div class="playlist-section">
+        <div class="tabs">
+            <button id="tab-music" class="tab-btn active" onclick="switchTab('music')">🎵 音楽リスト</button>
+            <button id="tab-bg" class="tab-btn" onclick="switchTab('bg')">🎬 背景リスト</button>
+        </div>
+        <div class="playlist-title-row">
+            <span id="playlist-type-label" style="font-size:0.8rem; color:#8b949e;">音楽をお気に入り登録</span>
+            <button class="add-fav-btn" onclick="addCurrentToPlaylist()">追加</button>
+        </div>
+        <ul class="playlist-ul active" id="playlist-music-list"></ul>
+        <ul class="playlist-ul" id="playlist-bg-list"></ul>
     </div>
 </div>
 
-<!-- YouTubeの埋め込み。実はここに「ある魔法」をかけています -->
-<div id="youtube-iframe-holder">
-    <div id="youtube-audio-player"></div>
+<div class="hidden-players">
+    <div id="player-1"></div>
+    <div id="player-2"></div>
+    <div id="player-3"></div>
+    <div id="player-4"></div>
 </div>
 
 <script>
@@ -196,30 +225,51 @@
     var firstScriptTag = document.getElementsByTagName('script')[0];
     firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
 
-    var player;
-    var progressTimer;
-    
-    // Web Audio APIの高度なノードたち
-    var audioCtx;
-    var sourceNode;
-    var delayNode, delayGain;
-    var feedbackGain;
-    var pannerL, pannerR;
+    var players = [];
+    var bgPlayer;
+    var progressTimer, visualizerTimer;
+    var delayStep = 25; 
+    var currentVideoId = "";
+    var currentBgId = "5qap5aO4i9A"; 
+    var currentTab = 'music';
+
+    var visContainer = document.getElementById('visualizer');
+    var totalBars = 15;
+    for(var i=0; i<totalBars; i++) {
+        var bar = document.createElement('div'); bar.className = 'bar'; visContainer.appendChild(bar);
+    }
+    var barElements = document.getElementsByClassName('bar');
+
+    function unlockAudio() {
+        document.getElementById('start-overlay').style.display = 'none';
+        if(bgPlayer) bgPlayer.playVideo();
+        players.forEach(p => { try{ p.playVideo(); }catch(e){} });
+    }
 
     function onYouTubeIframeAPIReady() {
-        player = new YT.Player('youtube-audio-player', {
-            height: '200',
-            width: '200',
-            videoId: '', 
-            playerVars: {
-                'playsinline': 1,
-                'controls': 0,
-                'disablekb': 1
-            },
-            events: {
-                'onStateChange': onPlayerStateChange
-            }
+        bgPlayer = new YT.Player('bg-player', {
+            height: '100%', width: '100%', videoId: currentBgId, 
+            playerVars: { 'autoplay': 1, 'controls': 0, 'mute': 1, 'loop': 1, 'playlist': currentBgId, 'disablekb': 1, 'rel': 0, 'playsinline': 1 }
         });
+
+        for (var i = 1; i <= 4; i++) {
+            (function(id) {
+                players.push(new YT.Player('player-' + id, {
+                    height: '100', width: '100', videoId: '',
+                    playerVars: { 'playsinline': 1, 'controls': 0, 'disablekb': 1 },
+                    events: {
+                        'onStateChange': function(event) {
+                            if (id === 1) {
+                                if(event.data == YT.PlayerState.PLAYING) { startProgressLoop(); startVisualizer(); } 
+                                else { stopVisualizer(); }
+                            }
+                        }
+                    }
+                }));
+            })(i);
+        }
+        displayPlaylist('music');
+        displayPlaylist('bg');
     }
 
     function getYouTubeId(url) {
@@ -228,58 +278,95 @@
         return (match && match[2].length == 11) ? match[2] : null;
     }
 
-    function loadAndPlay() {
-        var url = document.getElementById('youtube-url').value;
-        var videoId = getYouTubeId(url);
-        
-        if (videoId && player) {
-            player.loadVideoById(videoId);
-            // 音が出たタイミング、またはユーザーアクションでオーディオ回路を起動
-            setTimeout(initAudioContext, 1000); 
-        } else {
-            alert('有効なYouTubeのURLを入力してください。');
+    function loadAndPlay(targetId) {
+        var videoId = targetId || getYouTubeId(document.getElementById('youtube-url').value);
+        if (videoId && players.length === 4) {
+            currentVideoId = videoId;
+            players.forEach(p => p.loadVideoById(videoId));
+            
+            updateAllVolumes(); // 音量を一括セット
+
+            var bgUrlInput = document.getElementById('bg-url').value;
+            if (!bgUrlInput && bgPlayer) {
+                currentBgId = videoId;
+                bgPlayer.loadVideoById({ videoId: videoId, startSeconds: 0 });
+                bgPlayer.mute();
+            }
+            document.getElementById('play-pause-btn').innerText = "一時停止";
+        } else if(!targetId) { alert('有効なYouTubeのURLを入力してください。'); }
+    }
+
+    function loadBackgroundOnly(targetId) {
+        var videoId = targetId || getYouTubeId(document.getElementById('bg-url').value);
+        if (videoId && bgPlayer) {
+            currentBgId = videoId;
+            bgPlayer.loadVideoById({ videoId: videoId, startSeconds: 0 });
+            bgPlayer.mute();
+        } else if(!targetId) { alert('有効な背景用YouTubeのURLを入力してください。'); }
+    }
+
+    // 🔊 マスター音量とお風呂反響の2つを掛け算して全プレイヤーに反映する処理
+    function updateAllVolumes() {
+        if (players.length < 4) return;
+        var masterVol = document.getElementById('volume-slider').value; // 0 ~ 100
+        var reverbVal = document.getElementById('reverb-slider').value; // 0 ~ 100
+
+        // メインプレイヤー（1つ目）の音量
+        players[0].setVolume(masterVol);
+
+        // 残り3つの反響プレイヤーの音量計算
+        for (var i = 1; i < 4; i++) {
+            if (!players[i]) continue;
+            var damp = 1 - (i * 0.23); // 減衰率
+            // 「マスター音量」×「お風呂反響度」×「減衰率」
+            var targetVol = Math.floor(masterVol * (reverbVal / 100) * damp);
+            players[i].setVolume(targetVol);
         }
     }
+
+    function toggleTheaterMode() { document.body.classList.toggle('theater-mode'); }
 
     function togglePlay() {
-        if (!player) return;
-        var state = player.getPlayerState();
-        if (state == YT.PlayerState.PLAYING) {
-            player.pauseVideo();
-        } else {
-            player.playVideo();
-            initAudioContext();
-        }
-    }
-
-    function onPlayerStateChange(event) {
+        if (players.length < 4) return;
+        var state = players[0].getPlayerState();
         var btn = document.getElementById('play-pause-btn');
-        if (event.data == YT.PlayerState.PLAYING) {
-            btn.innerText = "一時停止";
-            startProgressLoop();
-            initAudioContext();
-        } else {
+        if (state == YT.PlayerState.PLAYING) {
+            players.forEach(p => p.pauseVideo());
+            if(bgPlayer) bgPlayer.pauseVideo();
             btn.innerText = "再生";
-            clearInterval(progressTimer);
+            stopVisualizer();
+        } else {
+            players[0].playVideo();
+            if(bgPlayer) bgPlayer.playVideo();
+            for (var i = 1; i < 4; i++) {
+                (function(index) { setTimeout(function() { if(players[index]) players[index].playVideo(); }, delayStep * index); })(i);
+            }
+            btn.innerText = "一時停止";
+            startVisualizer();
         }
     }
 
     function skip(seconds) {
-        if (player) player.seekTo(player.getCurrentTime() + seconds, true);
+        if (players.length < 4) return;
+        var targetTime = players[0].getCurrentTime() + seconds;
+        players.forEach((p, index) => { p.seekTo(targetTime + ((delayStep * index) / 1000), true); });
+        if(bgPlayer) bgPlayer.seekTo(targetTime, true);
     }
 
     function seekVideo(value) {
-        if (!player) return;
-        var newTime = (value / 100) * player.getDuration();
-        player.seekTo(newTime, true);
+        if (players.length < 4) return;
+        var duration = players[0].getDuration();
+        var newTime = (value / 100) * duration;
+        players.forEach((p, index) => { p.seekTo(newTime + ((delayStep * index) / 1000), true); });
+        if(bgPlayer) bgPlayer.seekTo(newTime, true);
     }
 
     function startProgressLoop() {
         clearInterval(progressTimer);
         progressTimer = setInterval(function() {
-            if (!player) return;
-            var current = player.getCurrentTime();
-            var duration = player.getDuration();
+            if (!players[0]) return;
+            var current = players[0].getCurrentTime();
+            var duration = players[0].getDuration();
             if (duration > 0) {
                 document.getElementById('seek-bar').value = (current / duration) * 100;
                 document.getElementById('current-time').innerText = formatTime(current);
@@ -289,92 +376,68 @@
     }
 
     function formatTime(time) {
-        var mins = Math.floor(time / 60);
-        var secs = Math.floor(time % 60);
+        var mins = Math.floor(time / 60); var secs = Math.floor(time % 60);
         return mins + ':' + (secs < 10 ? '0' : '') + secs;
     }
 
-    function changeVolume(value) {
-        if (player) player.setVolume(value);
+    function startVisualizer() {
+        clearInterval(visualizerTimer);
+        visualizerTimer = setInterval(function() {
+            for(var i=0; i<barElements.length; i++) {
+                var randomHeight = Math.floor(Math.random() * 35) + 5;
+                barElements[i].style.height = randomHeight + 'px';
+            }
+        }, 100);
     }
 
-    // --- 【超重要】ここから音を劇的に変える魔法のオーディオ回路 ---
-    function initAudioContext() {
-        if (audioCtx) return;
+    function stopVisualizer() { clearInterval(visualizerTimer); for(var i=0; i<barElements.length; i++) { barElements[i].style.height = '5px'; } }
 
-        // ブラウザのWeb Audio APIを起動
-        var AudioContext = window.AudioContext || window.webkitAudioContext;
-        audioCtx = new AudioContext();
-
-        // 隠れているYouTubeの<iframe>要素を強引に音声ソースとして捕まえる
-        var iframe = document.querySelector('#youtube-iframe-holder iframe');
-        if (!iframe) return;
-
-        try {
-            sourceNode = audioCtx.createMediaElementSource(iframe);
-        } catch(e) {
-            // クロスオリジン問題で直接キャプチャできない場合のフォールバック
-            // ※ローカルのHTMLファイルだとブラウザのセキュリティ制限がかかることがあります。
-            // その場合は、サーバー（GitHub Pages等）にアップロードすると完全に動作します。
-            console.log("Audioノードの接続を試みます...");
-        }
-
-        // 1. 反響（お風呂）を作るためのディレイ回路
-        delayNode = audioCtx.createDelay();
-        delayNode.delayTime.value = 0.04; // 40ミリ秒の絶妙な遅延（お風呂感）
-        
-        feedbackGain = audioCtx.createGain();
-        feedbackGain.gain.value = 0.4; // 跳ね返る音の強さ
-        
-        delayGain = audioCtx.createGain();
-        delayGain.gain.value = 0; // 初期値（エフェクトOFF）
-
-        // ディレイのループ接続（音がワンワン反響する仕組み）
-        delayNode.connect(feedbackGain);
-        feedbackGain.connect(delayNode);
-
-        // 2. 左右の広がり（サラウンド）を作るためのスプリッターとパンナー
-        var splitter = audioCtx.createChannelMerger(2); 
-        pannerL = audioCtx.createStereoPanner();
-        pannerR = audioCtx.createStereoPanner();
-        
-        pannerL.pan.value = -0.8; // 左に振る
-        pannerR.pan.value = 0.8;  // 右に振る
-
-        // 全てを繋ぐ
-        // 元の音 -> スピーカー
-        sourceNode.connect(audioCtx.destination);
-        
-        // 元の音 -> お風呂反響回路 -> スピーカー
-        sourceNode.connect(delayNode);
-        delayNode.connect(delayGain);
-        delayGain.connect(audioCtx.destination);
-
-        // ※注意: ブラウザによってはYouTubeの動画音声をJavaScript側で
-        // 完全に横取りできないセキュリティロック（CORS）がかかる場合があります。
-        // その場合でも、疑似立体音響を楽しめるように値を設定しておきます。
-        updateAudioEffects();
+    function switchTab(type) {
+        currentTab = type;
+        document.getElementById('tab-music').classList.toggle('active', type === 'music');
+        document.getElementById('tab-bg').classList.toggle('active', type === 'bg');
+        document.getElementById('playlist-music-list').classList.toggle('active', type === 'music');
+        document.getElementById('playlist-bg-list').classList.toggle('active', type === 'bg');
+        document.getElementById('playlist-type-label').innerText = type === 'music' ? "音楽をお気に入り登録" : "現在の背景をお気に入り登録";
     }
 
-    // スライダーの値を感知して、音の響きをリアルタイムに変更する
-    function updateAudioEffects() {
-        var reverbVal = document.getElementById('reverb-slider').value / 100;
-        var surroundVal = document.getElementById('surround-slider').value / 100;
+    function getLocalStoragePlaylist(type) {
+        var list = localStorage.getItem('yt_bath_' + type);
+        return list ? JSON.parse(list) : [];
+    }
 
-        // お風呂の反響レベルを調整
-        if (delayGain) {
-            delayGain.gain.value = reverbVal * 0.8; // 最大で80%の残響
-            feedbackGain.gain.value = 0.3 + (reverbVal * 0.4); // つまみを上げるほど残響が長くなる
+    function addCurrentToPlaylist() {
+        var idToSave = (currentTab === 'music') ? currentVideoId : currentBgId;
+        if(!idToSave || idToSave === "5qap5aO4i9A" && currentTab === 'bg' && !document.getElementById('bg-url').value) {
+            alert("対象の動画が読み込まれていません。"); return;
         }
+        var playlist = getLocalStoragePlaylist(currentTab);
+        if(playlist.includes(idToSave)) { alert("既に追加されています。"); return; }
+        playlist.push(idToSave);
+        localStorage.setItem('yt_bath_' + currentTab, JSON.stringify(playlist));
+        displayPlaylist(currentTab);
+    }
 
-        // 左右の広がり（サラウンド）の調整
-        // 実はYouTubeのAPI越しに完璧なステレオ分離をするには、サイトをネット上（GitHub Pagesなど）
-        // に公開する必要があります。ローカル環境（PC内のファイルを開くだけ）だと安全機能が働いて
-        // 広がりがマイルドになりますが、ネットに上げると強烈なサラウンドになります！
-        if (pannerL && pannerR) {
-            pannerL.pan.value = -surroundVal;
-            pannerR.pan.value = surroundVal;
-        }
+    function deletePlaylistItem(index, type) {
+        var playlist = getLocalStoragePlaylist(type);
+        playlist.splice(index, 1);
+        localStorage.setItem('yt_bath_' + type, JSON.stringify(playlist));
+        displayPlaylist(type);
+    }
+
+    function displayPlaylist(type) {
+        var playlist = getLocalStoragePlaylist(type);
+        var ul = document.getElementById('playlist-' + type + '-list');
+        ul.innerHTML = "";
+        playlist.forEach(function(id, index) {
+            var li = document.createElement('li'); li.className = 'playlist-item';
+            var textSpan = document.createElement('span'); textSpan.className = 'playlist-text';
+            textSpan.innerText = "📺 ID: " + id;
+            textSpan.onclick = function() { if(type === 'music') { loadAndPlay(id); } else { loadBackgroundOnly(id); } };
+            var delBtn = document.createElement('button'); delBtn.className = 'delete-btn'; delBtn.innerText = "×";
+            delBtn.onclick = function(e) { e.stopPropagation(); deletePlaylistItem(index, type); };
+            li.appendChild(textSpan); li.appendChild(delBtn); ul.appendChild(li);
+        });
     }
 </script>
 
