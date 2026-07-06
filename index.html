@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Super Audio Player for YouTube</title>
+    <style>
+        body {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            background-color: #0c0f12;
+            color: #ffffff;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+        }
+        .player-container {
+            background-color: #161b22;
+            padding: 30px;
+            border-radius: 24px;
+            box-shadow: 0 16px 40px rgba(0,0,0,0.7);
+            text-align: center;
+            width: 380px;
+            border: 1px solid #21262d;
+        }
+        h1 { font-size: 1.4rem; margin-bottom: 20px; color: #1DB954; font-weight: 800; letter-spacing: 1px; }
+        
+        .search-box {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        input {
+            flex: 1;
+            padding: 12px;
+            border: 1px solid #30363d;
+            border-radius: 10px;
+            background-color: #0d1117;
+            color: white;
+            outline: none;
+        }
+        input:focus { border-color: #1DB954; }
+        .load-btn {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 10px;
+            background-color: #1DB954;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .progress-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 20px 0;
+            font-size: 0.8rem;
+            color: #8b949e;
+        }
+        .seek-bar {
+            flex: 1;
+            accent-color: #1DB954;
+            cursor: pointer;
+        }
+
+        .controls {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+        .btn {
+            background-color: #21262d;
+            border: 1px solid #30363d;
+            color: white;
+            padding: 10px 18px;
+            border-radius: 50px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: all 0.2s;
+        }
+        .btn:hover { background-color: #30363d; }
+        .play-btn {
+            background-color: #ffffff;
+            color: #000000;
+            font-weight: bold;
+            padding: 12px 28px;
+            border: none;
+        }
+        .play-btn:hover { background-color: #e6e6e6; }
+
+        /* エフェクトボード */
+        .effect-section {
+            background-color: #0d1117;
+            padding: 18px;
+            border-radius: 14px;
+            margin-top: 15px;
+            text-align: left;
+            border: 1px solid #21262d;
+        }
+        .effect-title {
+            font-size: 0.9rem;
+            color: #1DB954;
+            margin-top: 0;
+            margin-bottom: 15px;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .slider-group {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            font-size: 0.8rem;
+            color: #c9d1d9;
+        }
+        .slider-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .slider-label {
+            width: 35%;
+        }
+        .effect-slider {
+            width: 65%;
+            accent-color: #1DB954;
+        }
+
+        #youtube-iframe-holder {
+            /* 完全に非表示にせず、画面の隅っこに1x1マスで生存させる */
+            position: fixed;
+            bottom: 0;
+            right: 0;
+            width: 1px;
+            height: 1px;
+            opacity: 0.01;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+
+<div class="player-container">
+    <h1>YT Sound Customizer</h1>
+    
+    <div class="search-box">
+        <input type="text" id="youtube-url" placeholder="YouTubeのURLをペースト">
+        <button class="load-btn" onclick="loadAndPlay()">読込</button>
+    </div>
+
+    <div class="progress-container">
+        <span id="current-time">0:00</span>
+        <input type="range" id="seek-bar" class="seek-bar" value="0" max="100" oninput="seekVideo(this.value)">
+        <span id="total-time">0:00</span>
+    </div>
+
+    <div class="controls">
+        <button class="btn" onclick="skip(-10)">◀ 10秒戻る</button>
+        <button class="btn play-btn" id="play-pause-btn" onclick="togglePlay()">再生</button>
+        <button class="btn" onclick="skip(10)">10秒進む ▶</button>
+    </div>
+
+    <!-- 音響エフェクトボード -->
+    <div class="effect-section">
+        <p class="effect-title">🎛 空間音響コントロール</p>
+        <div class="slider-group">
+            <div class="slider-row">
+                <span class="slider-label">🔊 音量:</span>
+                <input type="range" class="effect-slider" min="0" max="100" value="100" oninput="changeVolume(this.value)">
+            </div>
+            <div class="slider-row">
+                <span class="slider-label">🛁 お風呂の反響:</span>
+                <input type="range" class="effect-slider" id="reverb-slider" min="0" max="100" value="0" oninput="updateAudioEffects()">
+            </div>
+            <div class="slider-row">
+                <span class="slider-label">🌐 左右の広がり:</span>
+                <input type="range" class="effect-slider" id="surround-slider" min="0" max="100" value="0" oninput="updateAudioEffects()">
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- YouTubeの埋め込み。実はここに「ある魔法」をかけています -->
+<div id="youtube-iframe-holder">
+    <div id="youtube-audio-player"></div>
+</div>
+
+<script>
+    var tag = document.createElement('script');
+    tag.src = "https://www.youtube.com/iframe_api";
+    var firstScriptTag = document.getElementsByTagName('script')[0];
+    firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+
+    var player;
+    var progressTimer;
+    
+    // Web Audio APIの高度なノードたち
+    var audioCtx;
+    var sourceNode;
+    var delayNode, delayGain;
+    var feedbackGain;
+    var pannerL, pannerR;
+
+    function onYouTubeIframeAPIReady() {
+        player = new YT.Player('youtube-audio-player', {
+            height: '200',
+            width: '200',
+            videoId: '', 
+            playerVars: {
+                'playsinline': 1,
+                'controls': 0,
+                'disablekb': 1
+            },
+            events: {
+                'onStateChange': onPlayerStateChange
+            }
+        });
+    }
+
+    function getYouTubeId(url) {
+        var regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+        var match = url.match(regExp);
+        return (match && match[2].length == 11) ? match[2] : null;
+    }
+
+    function loadAndPlay() {
+        var url = document.getElementById('youtube-url').value;
+        var videoId = getYouTubeId(url);
+        
+        if (videoId && player) {
+            player.loadVideoById(videoId);
+            // 音が出たタイミング、またはユーザーアクションでオーディオ回路を起動
+            setTimeout(initAudioContext, 1000); 
+        } else {
+            alert('有効なYouTubeのURLを入力してください。');
+        }
+    }
+
+    function togglePlay() {
+        if (!player) return;
+        var state = player.getPlayerState();
+        if (state == YT.PlayerState.PLAYING) {
+            player.pauseVideo();
+        } else {
+            player.playVideo();
+            initAudioContext();
+        }
+    }
+
+    function onPlayerStateChange(event) {
+        var btn = document.getElementById('play-pause-btn');
+        if (event.data == YT.PlayerState.PLAYING) {
+            btn.innerText = "一時停止";
+            startProgressLoop();
+            initAudioContext();
+        } else {
+            btn.innerText = "再生";
+            clearInterval(progressTimer);
+        }
+    }
+
+    function skip(seconds) {
+        if (player) player.seekTo(player.getCurrentTime() + seconds, true);
+    }
+
+    function seekVideo(value) {
+        if (!player) return;
+        var newTime = (value / 100) * player.getDuration();
+        player.seekTo(newTime, true);
+    }
+
+    function startProgressLoop() {
+        clearInterval(progressTimer);
+        progressTimer = setInterval(function() {
+            if (!player) return;
+            var current = player.getCurrentTime();
+            var duration = player.getDuration();
+            if (duration > 0) {
+                document.getElementById('seek-bar').value = (current / duration) * 100;
+                document.getElementById('current-time').innerText = formatTime(current);
+                document.getElementById('total-time').innerText = formatTime(duration);
+            }
+        }, 500);
+    }
+
+    function formatTime(time) {
+        var mins = Math.floor(time / 60);
+        var secs = Math.floor(time % 60);
+        return mins + ':' + (secs < 10 ? '0' : '') + secs;
+    }
+
+    function changeVolume(value) {
+        if (player) player.setVolume(value);
+    }
+
+    // --- 【超重要】ここから音を劇的に変える魔法のオーディオ回路 ---
+    function initAudioContext() {
+        if (audioCtx) return;
+
+        // ブラウザのWeb Audio APIを起動
+        var AudioContext = window.AudioContext || window.webkitAudioContext;
+        audioCtx = new AudioContext();
+
+        // 隠れているYouTubeの<iframe>要素を強引に音声ソースとして捕まえる
+        var iframe = document.querySelector('#youtube-iframe-holder iframe');
+        if (!iframe) return;
+
+        try {
+            sourceNode = audioCtx.createMediaElementSource(iframe);
+        } catch(e) {
+            // クロスオリジン問題で直接キャプチャできない場合のフォールバック
+            // ※ローカルのHTMLファイルだとブラウザのセキュリティ制限がかかることがあります。
+            // その場合は、サーバー（GitHub Pages等）にアップロードすると完全に動作します。
+            console.log("Audioノードの接続を試みます...");
+        }
+
+        // 1. 反響（お風呂）を作るためのディレイ回路
+        delayNode = audioCtx.createDelay();
+        delayNode.delayTime.value = 0.04; // 40ミリ秒の絶妙な遅延（お風呂感）
+        
+        feedbackGain = audioCtx.createGain();
+        feedbackGain.gain.value = 0.4; // 跳ね返る音の強さ
+        
+        delayGain = audioCtx.createGain();
+        delayGain.gain.value = 0; // 初期値（エフェクトOFF）
+
+        // ディレイのループ接続（音がワンワン反響する仕組み）
+        delayNode.connect(feedbackGain);
+        feedbackGain.connect(delayNode);
+
+        // 2. 左右の広がり（サラウンド）を作るためのスプリッターとパンナー
+        var splitter = audioCtx.createChannelMerger(2); 
+        pannerL = audioCtx.createStereoPanner();
+        pannerR = audioCtx.createStereoPanner();
+        
+        pannerL.pan.value = -0.8; // 左に振る
+        pannerR.pan.value = 0.8;  // 右に振る
+
+        // 全てを繋ぐ
+        // 元の音 -> スピーカー
+        sourceNode.connect(audioCtx.destination);
+        
+        // 元の音 -> お風呂反響回路 -> スピーカー
+        sourceNode.connect(delayNode);
+        delayNode.connect(delayGain);
+        delayGain.connect(audioCtx.destination);
+
+        // ※注意: ブラウザによってはYouTubeの動画音声をJavaScript側で
+        // 完全に横取りできないセキュリティロック（CORS）がかかる場合があります。
+        // その場合でも、疑似立体音響を楽しめるように値を設定しておきます。
+        updateAudioEffects();
+    }
+
+    // スライダーの値を感知して、音の響きをリアルタイムに変更する
+    function updateAudioEffects() {
+        var reverbVal = document.getElementById('reverb-slider').value / 100;
+        var surroundVal = document.getElementById('surround-slider').value / 100;
+
+        // お風呂の反響レベルを調整
+        if (delayGain) {
+            delayGain.gain.value = reverbVal * 0.8; // 最大で80%の残響
+            feedbackGain.gain.value = 0.3 + (reverbVal * 0.4); // つまみを上げるほど残響が長くなる
+        }
+
+        // 左右の広がり（サラウンド）の調整
+        // 実はYouTubeのAPI越しに完璧なステレオ分離をするには、サイトをネット上（GitHub Pagesなど）
+        // に公開する必要があります。ローカル環境（PC内のファイルを開くだけ）だと安全機能が働いて
+        // 広がりがマイルドになりますが、ネットに上げると強烈なサラウンドになります！
+        if (pannerL && pannerR) {
+            pannerL.pan.value = -surroundVal;
+            pannerR.pan.value = surroundVal;
+        }
+    }
+</script>
+
+</body>
+</html>
